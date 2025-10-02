@@ -1,6 +1,31 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifndef GL_GLEXT_PROTOTYPES
+#define GL_GLEXT_PROTOTYPES
+#endif
+#include <GLES2/gl2.h>
+
+/* Ensure we call real GLES2 symbols, not rgl wrappers */
+#ifdef glDisable
+#undef glDisable
+#endif
+#ifdef glClear
+#undef glClear
+#endif
+#ifdef glClearColor
+#undef glClearColor
+#endif
+#ifdef glEnable
+#undef glEnable
+#endif
+#ifdef __cplusplus
+extern "C" {
+#endif
+int GLideN64_GetBGMode(void);
+#ifdef __cplusplus
+}
+#endif
 
 #include "libretro.h"
 #include "libretro_private.h"
@@ -30,6 +55,7 @@
 #include "pi/pi_controller.h"
 #include "si/pif.h"
 #include "libretro_memory.h"
+#include "GLideN64_libretro.h"
 
 #include "audio_plugin.h"
 
@@ -108,6 +134,7 @@ uint32_t TurboBoost = 0;
 uint32_t CountPerScanlineOverride = 0;
 uint32_t GLideN64IniBehaviour = 0;
 uint32_t EnableCopyAuxToRDRAM = 0;
+uint32_t BGMode = 1;
 
 int rspMode = 0;
 // after the controller's CONTROL* member has been assigned we can update
@@ -193,6 +220,8 @@ static void setup_variables(void)
             "Continuous texrect coords; Off|Auto|Force" },
         { "LudicrousN64-EnableNativeResTexrects",
             "Native res. 2D texrects; False|True" },
+        { "LudicrousN64-BackgroundMode",
+            "Background mode (GLideN64); One piece|Stripped" },            
 #if defined(HAVE_OPENGLES)
         { "LudicrousN64-EnableLegacyBlending",
             "Less accurate blending mode; True|False" },
@@ -574,6 +603,14 @@ void update_variables()
     if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
     {
        EnableCopyAuxToRDRAM = !strcmp(var.value, "False") ? 0 : 1;
+    }
+
+    var.key = "LudicrousN64-BackgroundMode";
+    var.value = NULL;
+    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+    {
+      /* 0 = One piece, 1 = Stripped */
+      BGMode = (strcmp(var.value, "One piece") == 0) ? 0u : 1u;
     }
 
     var.key = "LudicrousN64-EnableHWLighting";

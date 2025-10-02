@@ -42,6 +42,7 @@ struct Config
 		u32 bilinearMode;
 		u32 maxBytes;
 		u32 screenShotFormat;
+		u32 clampSpecialTextures;		
 	} texture;
 
 	enum TexrectCorrectionMode {
@@ -49,6 +50,13 @@ struct Config
 		tcSmart,
 		tcForce
 	};
+
+        enum BGMode {
+               bgOnePiece = 0,
+               bgStripped = 1
+       };
+
+BGMode bgMode;
 
 	struct {
 		u32 enableNoise;

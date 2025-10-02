@@ -12,6 +12,8 @@ void Config::resetToDefaults()
 {
 	version = CONFIG_VERSION_CURRENT;
 
+bgMode = bgStripped;
+
 #if defined(PANDORA) || defined(VC)
 	video.fullscreen = 1;
 	video.fullscreenWidth = video.windowedWidth = 800;

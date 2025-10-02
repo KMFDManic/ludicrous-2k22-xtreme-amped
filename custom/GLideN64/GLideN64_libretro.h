@@ -70,4 +70,19 @@ extern uint32_t CountPerScanlineOverride;
 extern uint32_t GLideN64IniBehaviour;
 extern uint32_t EnableCopyAuxToRDRAM;
 
+#ifndef GLIDEN64_LIBRETRO_BRIDGE_H
+#define GLIDEN64_LIBRETRO_BRIDGE_H
+#include <stdint.h>
+#ifdef __cplusplus
+extern "C" {
+#endif
+/* 0 = One piece, 1 = Stripped (default) */
+extern uint32_t BGMode;
+#ifdef __cplusplus
+}
+#endif
+#endif
+
+extern uint32_t BGMode;
+
 #endif

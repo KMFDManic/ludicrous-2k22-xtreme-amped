@@ -9,15 +9,38 @@
 #include "RSP.h"
 #include "RDP.h"
 #include "Types.h"
+#include "Config.h"
+#include "VI.h" 
 
-void S2DEX_BG_1Cyc( u32 w0, u32 w1 )
+static inline void clearScreenToWhite()
 {
-	gSPBgRect1Cyc( w1 );
+   const u32 rgba5551 = 0xFFFF;                 // white in RGBA5551
+   const u32 packed   = (rgba5551 << 16) | rgba5551;
+   gDPSetFillColor(packed);
+   gDPFillRectangle(0, 0, VI.width - 1, VI.height - 1);
 }
 
-void S2DEX_BG_Copy( u32 w0, u32 w1 )
+void S2DEX_BG_1Cyc(u32 w0, u32 w1)
 {
-	gSPBgRectCopy( w1 );
+   // Draw small/1-cycle BGs even in Stripped to reduce visual glitches
+   gSPBgRect1Cyc(w1);
+}
+
+void S2DEX_BG_Copy(u32 w0, u32 w1)
+{
+   
+    /* Stripped-mode: ignore depth to avoid stale-Z artifacts (Bangai-O) */
+    const bool __xt_isStripped = (config.bgMode == 1);
+    if (__xt_isStripped) glDisable(GL_DEPTH_TEST);
+if (config.bgMode == Config::bgStripped)
+   {
+      // Emulate the “big plate overwrites the frame” to avoid ghosting/black
+      clearScreenToWhite();
+      return;
+   }
+   gSPBgRectCopy(w1);
+    if (__xt_isStripped) glEnable(GL_DEPTH_TEST);
+
 }
 
 void S2DEX_Obj_Rectangle( u32 w0, u32 w1 )

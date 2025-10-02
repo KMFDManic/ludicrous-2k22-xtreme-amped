@@ -284,8 +284,10 @@ SOURCES_CXX   += \
 	$(VIDEODIR_GLIDEN64)/src/DepthBufferRender/DepthBufferRender.cpp \
 	$(VIDEODIR_GLIDEN64)/src/GLUniforms/UniformSet.cpp \
 	$(VIDEODIR_GLIDEN64)/src/common/CommonAPIImpl_common.cpp \
+	$(ROOT_DIR)/custom/GLideN64/mupenplus/xt_vram_purge_helper.cpp \
 	$(ROOT_DIR)/custom/GLideN64/MupenPlusPluginAPI.cpp \
 	$(ROOT_DIR)/custom/GLideN64/mupenplus/Config_mupenplus.cpp \
+	$(ROOT_DIR)/custom/GLideN64/mupenplus/Config_mupenplus_bridge.cpp \
 	$(ROOT_DIR)/custom/GLideN64/mupenplus/OpenGL_mupenplus.cpp \
 	$(ROOT_DIR)/custom/GLideN64/mupenplus/CommonAPIImpl_mupenplus.cpp \
 	$(ROOT_DIR)/custom/glsm/glsm.cpp

@@ -1,23 +1,23 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- *   Mupen64plus - plugin.c                                                *
- *   Mupen64Plus homepage: http://code.google.com/p/mupen64plus/           *
- *   Copyright (C) 2002 Hacktarux                                          *
- *   Copyright (C) 2009 Richard Goedeken                                   *
- *                                                                         *
- *   This program is free software; you can redistribute it and/or modify  *
- *   it under the terms of the GNU General Public License as published by  *
- *   the Free Software Foundation; either version 2 of the License, or     *
- *   (at your option) any later version.                                   *
- *                                                                         *
- *   This program is distributed in the hope that it will be useful,       *
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
- *   GNU General Public License for more details.                          *
- *                                                                         *
- *   You should have received a copy of the GNU General Public License     *
- *   along with this program; if not, write to the                         *
- *   Free Software Foundation, Inc.,                                       *
- *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.          *
+ *   Mupen64plus - plugin.c
+ *   Mupen64Plus homepage: http://code.google.com/p/mupen64plus/
+ *   Copyright (C) 2002 Hacktarux
+ *   Copyright (C) 2009 Richard Goedeken
+ *
+ *   This program is free software; you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License as published by
+ *   the Free Software Foundation; either version 2 of the License, or
+ *   (at your option) any later version.
+ *
+ *   This program is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
+ *
+ *   You should have received a copy of the GNU General Public License
+ *   along with this program; if not, write to the
+ *   Free Software Foundation, Inc.,
+ *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 #include <stdio.h>
@@ -41,6 +41,52 @@
 #include "main/version.h"
 #include "memory/memory.h"
 
+/* ---- VRAM purge hook -------------------------------------------------- */
+#ifdef __cplusplus
+extern "C" {
+#endif
+void xt_vram_purge_soft(void);
+#ifdef __cplusplus
+}
+#endif
+
+/* cadence: ~10 seconds @ 60fps (tune as you like) */
+static unsigned xt_vi_counter = 0;
+static unsigned xt_last_purge = 0;
+static unsigned xt_purge_interval_vi = 600;
+
+/* keep original function pointers so we can forward to the real plugin */
+static void (CALL *g_real_UpdateScreen)(void)    = NULL;
+static void (CALL *g_real_ViStatusChanged)(void) = NULL;
+
+/* our small wrappers; NOT exported, we assign them into the gfx vtable */
+static void CALL xt_UpdateScreen_wrap(void)
+{
+    if (g_real_UpdateScreen)
+        g_real_UpdateScreen();
+
+    /* periodic purge */
+    xt_vi_counter++;
+    if (xt_vi_counter - xt_last_purge >= xt_purge_interval_vi) {
+        xt_last_purge = xt_vi_counter;
+        xt_vram_purge_soft();
+    }
+}
+
+static void CALL xt_ViStatusChanged_wrap(void)
+{
+    if (g_real_ViStatusChanged)
+        g_real_ViStatusChanged();
+
+    xt_vi_counter++;
+    if (xt_vi_counter - xt_last_purge >= xt_purge_interval_vi) {
+        xt_last_purge = xt_vi_counter;
+        xt_vram_purge_soft();
+    }
+}
+
+/* ---------------------------------------------------------------------- */
+
 static unsigned int dummy;
 
 /* local functions */
@@ -52,6 +98,7 @@ static m64p_error EmptyGetVersionFunc(m64p_plugin_type *PluginType, int *PluginV
 {
    return M64ERR_SUCCESS;
 }
+
 /* local data structures and functions */
 #define DEFINE_GFX(X) \
     EXPORT m64p_error CALL PluginGetVersion(m64p_plugin_type *, int *, int *, const char **, int *); \
@@ -130,7 +177,7 @@ static m64p_error plugin_start_gfx(void)
    gfx_info.VI_Y_SCALE_REG = &(g_dev.vi.regs[VI_Y_SCALE_REG]);
    gfx_info.CheckInterrupts = EmptyFunc;
 
-   /* call the audio plugin */
+   /* call the video plugin */
    if (!gfx.initiateGFX(gfx_info))
    {
       printf("plugin_start_gfx fail.\n");
@@ -138,6 +185,16 @@ static m64p_error plugin_start_gfx(void)
    }
 
    printf("plugin_start_gfx success.\n");
+
+   /* ---------- hook our wrappers AFTER plugin has initialized ---------- */
+   g_real_UpdateScreen    = gfx.updateScreen;
+   g_real_ViStatusChanged = gfx.viStatusChanged;
+
+   gfx.updateScreen       = xt_UpdateScreen_wrap;
+   gfx.viStatusChanged    = xt_ViStatusChanged_wrap;
+
+   /* one-shot smoke test (safe): ensures linkage/context */
+   xt_vram_purge_soft();
 
    return M64ERR_SUCCESS;
 }
@@ -258,3 +315,4 @@ void plugin_connect_all()
    plugin_start_input();
    plugin_start_rsp();
 }
+

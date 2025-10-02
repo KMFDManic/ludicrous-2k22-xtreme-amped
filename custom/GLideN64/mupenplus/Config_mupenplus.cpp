@@ -14,6 +14,8 @@
 #include "../Log.h"
 #include "main/util.h"
 #include "GLideN64.custom.ini.h"
+#include "../../GLideN64/src/Config.h"
+#include "../GLideN64_libretro.h"  
 
 Config config;
 
@@ -138,6 +140,8 @@ void Config_LoadConfig()
 	config.generalEmulation.correctTexrectCoords = CorrectTexrectCoords;
 	config.generalEmulation.enableNativeResTexrects = enableNativeResTexrects;
 	config.generalEmulation.enableLegacyBlending = enableLegacyBlending;
+    /* 0 = One piece, 1 = Stripped */
+    config.bgMode = (BGMode == 0) ? Config::bgOnePiece : Config::bgStripped;
 #if defined(VC) || defined(CLASSIC)
 	config.frameBufferEmulation.copyDepthToRDRAM = 0;
 #else
