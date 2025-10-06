@@ -136,6 +136,17 @@ uint32_t GLideN64IniBehaviour = 0;
 uint32_t EnableCopyAuxToRDRAM = 0;
 uint32_t BGMode = 1;
 
+unsigned xt_purge_interval_vi = 600;
+
+static unsigned xt_secs_to_vi(unsigned secs)
+{
+    /* Use the core’s reported VI refresh as FPS-ish; fall back to 60 if weird */
+    double fps = vi_expected_refresh_rate_from_tv_standard(ROM_PARAMS.systemtype);
+    if (fps < 1.0 || fps > 1000.0) fps = 60.0;
+    unsigned vi = (unsigned)(secs * fps + 0.5);
+    return vi ? vi : 1;
+}
+
 int rspMode = 0;
 // after the controller's CONTROL* member has been assigned we can update
 // them straight from here...
@@ -179,13 +190,15 @@ static void setup_variables(void)
             "RSP Mode; HLE" },
 #endif
         { "LudicrousN64-43screensize",
-            "4:3 Resolution; 512x384|640x480|720x576|832x624|960x720|1152x864|1400x1050|1280x960|1440x1080|1600x1200|1920x1440|2240x1680|2560x1920|2880x2160|3200x2400|3520x2640|3840x2880|160x120|256x192|320x240|384x288|400x300" },
+            "4:3 Resolution; 512x384|640x480|720x576|832x624|960x720|1152x864|1280x960|1400x1050|1440x1080|1600x1200|1920x1440|2240x1680|2560x1920|2880x2160|3200x2400|3520x2640|3840x2880|160x120|256x192|320x240|384x288|400x300" },
         { "LudicrousN64-169screensize",
             "16:9 Resolution; 512×288|640x360|854×480|960x540|1280x720|1920x1080|2560x1440|3840x2160|4096x2160|7680x4320|256×144|426×240" },
         { "LudicrousN64-aspect",
             "Aspect Ratio; 4:3|16:9|16:9 adjusted" },
+        { "LudicrousN64-LangoliersPurge",
+            "Xtreme Langoliers Purge (periodically unleash time-eaters to devour stale VRAM); Off|1 sec (Voracious – The Langoliers)|2 sec (Telekinetic – Carrie)|3 sec (Rabid – Cujo)|5 sec (Ravenous – It)|7 sec (Sinister – The Dark Half)|10 sec (Creeping – The Mist)|15 sec (Relentless – Christine)|20 sec (Restless – Pet Sematary)|30 sec (Obsessive – Misery)|45 sec (Prophetic – The Dead Zone)|60 sec (Watchful – The Shining)|90 sec (Nocturnal – ’Salem’s Lot)|120 sec (Ominous – Needful Things)|180 sec (Haunting – 1408)|240 sec (Pursuit – The Running Man)|300 sec (Searing – Firestarter)|600 sec (Drowsy – Doctor Sleep)|900 sec (Nostalgic – Stand by Me)|1200 sec (Hopeful – The Shawshank Redemption)|1500 sec (Enduring – The Long Walk)|1800 sec (Expansive – The Stand)|2400 sec (Epic – The Dark Tower)" },
         { "LudicrousN64-virefresh",
-            "Xtreme Reverse OC VIRefresh; 1500|1600|1700|1800|1900|2000|2100|2200|2300|2400|2500|2600|2700|2800|2900|3000|3100|3200|3300|3400|3500|50|100|150|200|250|300|350|400|450|500|550|600|650|700|750|800|850|900|950|1000|1050|1100|1150|1200|1250|1300|1350|1400|1450" },
+            "Xtreme Langoliers TimeSlip VIRefresh (discharge time-eaters to make stale FPS...vanish); 2400|2500|2600|2700|2800|2900|3000|3100|3200|3300|3400|3500|3600|3700|3800|3900|4000|4100|4200|4300|4400|4500|50|100|150|200|250|300|350|400|450|500|550|600|650|700|750|800|850|900|950|1000|1050|1100|1150|1200|1250|1300|1350|1400|1450|1500|1600|1700|1800|1900|2000|2100|2200|2300" },
         { "LudicrousN64-TurboBoost",
             "Xtreme TurboBoost; 0|X1|X2|X3|X4|X5|X6" },
         { "LudicrousN64-CountPerOp",
@@ -820,6 +833,26 @@ void update_variables()
     if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
         astick_sensitivity = atoi(var.value);
 
+    var.key = "LudicrousN64-LangoliersPurge";
+    var.value = NULL;
+    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+    {
+        if (!strcmp(var.value, "Off")) {
+            xt_purge_interval_vi = 0;
+        } else {
+            /* Expect "<number> sec" -> parse the number robustly */
+            const char *s = var.value;
+            char *end = NULL;
+            long secs = strtol(s, &end, 10);
+            if (secs > 0) {
+                xt_purge_interval_vi = xt_secs_to_vi((unsigned)secs);
+            } else {
+                /* Fallback default if parsing fails */
+                xt_purge_interval_vi = xt_secs_to_vi(60);
+            }
+        }
+    }
+
     var.key = "LudicrousN64-virefresh";
     var.value = NULL;
     if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
@@ -1063,7 +1096,7 @@ void retro_run (void)
     libretro_swap_buffer = false;
     static bool updated = false;
     if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE, &updated) && updated)
-        update_controllers();
+        update_variables();
     glsm_ctl(GLSM_CTL_STATE_BIND, NULL);
     co_switch(game_thread);
     glsm_ctl(GLSM_CTL_STATE_UNBIND, NULL);

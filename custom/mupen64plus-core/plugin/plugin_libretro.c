@@ -20,6 +20,8 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
+/* custom/mupen64plus-core/plugin/plugin_libretro.c */
+
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -41,33 +43,26 @@
 #include "main/version.h"
 #include "memory/memory.h"
 
-/* ---- VRAM purge hook -------------------------------------------------- */
-#ifdef __cplusplus
-extern "C" {
-#endif
-void xt_vram_purge_soft(void);
-#ifdef __cplusplus
-}
-#endif
+extern unsigned xt_purge_interval_vi; 
+void xt_vram_purge_soft(void);         
 
-/* cadence: ~10 seconds @ 60fps (tune as you like) */
-static unsigned xt_vi_counter = 0;
-static unsigned xt_last_purge = 0;
-static unsigned xt_purge_interval_vi = 600;
+/* VI cadence counters */
+static unsigned xt_vi_counter  = 0;
+static unsigned xt_last_purge  = 0;
 
-/* keep original function pointers so we can forward to the real plugin */
+/* Keep original function pointers so we can forward after wrapping */
 static void (CALL *g_real_UpdateScreen)(void)    = NULL;
 static void (CALL *g_real_ViStatusChanged)(void) = NULL;
 
-/* our small wrappers; NOT exported, we assign them into the gfx vtable */
+/* Wrapper around UpdateScreen: forward, then timed purge */
 static void CALL xt_UpdateScreen_wrap(void)
 {
     if (g_real_UpdateScreen)
         g_real_UpdateScreen();
 
-    /* periodic purge */
     xt_vi_counter++;
-    if (xt_vi_counter - xt_last_purge >= xt_purge_interval_vi) {
+    if (xt_purge_interval_vi &&
+        (xt_vi_counter - xt_last_purge) >= xt_purge_interval_vi) {
         xt_last_purge = xt_vi_counter;
         xt_vram_purge_soft();
     }
@@ -79,13 +74,14 @@ static void CALL xt_ViStatusChanged_wrap(void)
         g_real_ViStatusChanged();
 
     xt_vi_counter++;
-    if (xt_vi_counter - xt_last_purge >= xt_purge_interval_vi) {
+    if (xt_purge_interval_vi &&
+        (xt_vi_counter - xt_last_purge) >= xt_purge_interval_vi) {
         xt_last_purge = xt_vi_counter;
         xt_vram_purge_soft();
     }
 }
 
-/* ---------------------------------------------------------------------- */
+/* -------------------------------------------------------------------------- */
 
 static unsigned int dummy;
 
@@ -186,14 +182,14 @@ static m64p_error plugin_start_gfx(void)
 
    printf("plugin_start_gfx success.\n");
 
-   /* ---------- hook our wrappers AFTER plugin has initialized ---------- */
+   /* ---- Install Langoliers wrappers AFTER plugin has initialized ---- */
    g_real_UpdateScreen    = gfx.updateScreen;
    g_real_ViStatusChanged = gfx.viStatusChanged;
 
    gfx.updateScreen       = xt_UpdateScreen_wrap;
    gfx.viStatusChanged    = xt_ViStatusChanged_wrap;
 
-   /* one-shot smoke test (safe): ensures linkage/context */
+   /* optional one-shot smoke test (safe now that GL is initialized) */
    xt_vram_purge_soft();
 
    return M64ERR_SUCCESS;
