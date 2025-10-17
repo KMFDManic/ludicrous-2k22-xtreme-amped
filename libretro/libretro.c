@@ -81,6 +81,22 @@ retro_input_state_t input_cb = NULL;
 retro_audio_sample_batch_t audio_batch_cb = NULL;
 retro_environment_t environ_cb = NULL;
 
+
+/* ---- Xtreme live-apply helpers ---- */
+static bool av_info_dirty = false;
+
+static void xt_push_av_info_if_needed(void)
+{
+    if (!av_info_dirty || !environ_cb) return;
+    struct retro_system_av_info av;
+    retro_get_system_av_info(&av);
+    /* Push new timing/geometry so changes take effect without restart */
+    environ_cb(RETRO_ENVIRONMENT_SET_SYSTEM_AV_INFO, &av);
+    av_info_dirty = false;
+}
+/* ----------------------------------- */
+
+
 struct retro_rumble_interface rumble;
 
 save_memory_data saved_memory;
@@ -801,12 +817,15 @@ void update_variables()
         if (!strcmp(var.value, "16:9 adjusted")) {
              AspectRatio = 3;
              retro_screen_aspect = 16.0 / 9.0;
+    av_info_dirty = true;
         } else if (!strcmp(var.value, "16:9")) {
              AspectRatio = 2;
              retro_screen_aspect = 16.0 / 9.0;
+    av_info_dirty = true;
         } else {
              AspectRatio = 1;
              retro_screen_aspect = 4.0 / 3.0;
+    av_info_dirty = true;
         }
     }
 
@@ -854,6 +873,7 @@ void update_variables()
     }
 
     var.key = "LudicrousN64-virefresh";
+    av_info_dirty = true;
     var.value = NULL;
     if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
     {
@@ -1097,6 +1117,7 @@ void retro_run (void)
     static bool updated = false;
     if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE, &updated) && updated)
         update_variables();
+    xt_push_av_info_if_needed();
     glsm_ctl(GLSM_CTL_STATE_BIND, NULL);
     co_switch(game_thread);
     glsm_ctl(GLSM_CTL_STATE_UNBIND, NULL);
