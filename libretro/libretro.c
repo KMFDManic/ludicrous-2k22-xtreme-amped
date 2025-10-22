@@ -147,6 +147,7 @@ uint32_t EnableFBEmulation = 0;
 uint32_t ForceDisableExtraMem = 0;
 uint32_t CountPerOp = 0;
 uint32_t TurboBoost = 0;
+static bool TurboBoost_NoSync = false;
 uint32_t CountPerScanlineOverride = 0;
 uint32_t GLideN64IniBehaviour = 0;
 uint32_t EnableCopyAuxToRDRAM = 0;
@@ -186,6 +187,47 @@ static void n64DebugCallback(void* aContext, int aLevel, const char* aMessage)
 
 extern m64p_rom_header ROM_HEADER;
 
+static void xt_apply_sync_state(void)
+{
+#ifdef RETRO_ENVIRONMENT_SET_FASTFORWARDING_OVERRIDE
+    struct retro_fastforwarding_override ff = {0};
+    if (TurboBoost_NoSync && TurboBoost > 0) {
+        ff.ratio = TurboBoost;
+        ff.inhibit_frame_time = true;
+        ff.notify_frontend = true;
+    }
+    environ_cb(RETRO_ENVIRONMENT_SET_FASTFORWARDING_OVERRIDE, &ff);
+#endif
+#ifdef HAVE_GLSM
+    int swap = (TurboBoost_NoSync && TurboBoost > 0) ? 0 : 1;
+    glsm_ctl(GLSM_CTL_STATE_SET_SWAP_INTERVAL, &swap);
+#endif
+}
+
+static void parse_turboboost_value(const char *val)
+{
+    TurboBoost_NoSync = false;
+    TurboBoost = 0;
+    if (!val) return;
+
+    if (!strcmp(val, "X6")) TurboBoost = 6;
+    else if (!strcmp(val, "X5")) TurboBoost = 5;
+    else if (!strcmp(val, "X4")) TurboBoost = 4;
+    else if (!strcmp(val, "X3")) TurboBoost = 3;
+    else if (!strcmp(val, "X2")) TurboBoost = 2;
+    else if (!strcmp(val, "X1")) TurboBoost = 1;
+    else if (!strcmp(val, "EX6")) { TurboBoost = 6; TurboBoost_NoSync = true; }
+    else if (!strcmp(val, "EX5")) { TurboBoost = 5; TurboBoost_NoSync = true; }
+    else if (!strcmp(val, "EX4")) { TurboBoost = 4; TurboBoost_NoSync = true; }
+    else if (!strcmp(val, "EX3")) { TurboBoost = 3; TurboBoost_NoSync = true; }
+    else if (!strcmp(val, "EX2")) { TurboBoost = 2; TurboBoost_NoSync = true; }
+    else if (!strcmp(val, "EX1")) { TurboBoost = 1; TurboBoost_NoSync = true; }
+    else if (!strcmp(val, "EX0")) { TurboBoost = 0; TurboBoost_NoSync = true; }
+    else TurboBoost = 0;
+
+    xt_apply_sync_state();
+}
+
 static void setup_variables(void)
 {
     struct retro_variable variables[] = {
@@ -216,7 +258,7 @@ static void setup_variables(void)
         { "LudicrousN64-virefresh",
             "Xtreme Langoliers TimeSlip VIRefresh (discharge time-eaters to make stale FPS...vanish); 2400|2500|2600|2700|2800|2900|3000|3100|3200|3300|3400|3500|3600|3700|3800|3900|4000|4100|4200|4300|4400|4500|50|100|150|200|250|300|350|400|450|500|550|600|650|700|750|800|850|900|950|1000|1050|1100|1150|1200|1250|1300|1350|1400|1450|1500|1600|1700|1800|1900|2000|2100|2200|2300" },
         { "LudicrousN64-TurboBoost",
-            "Xtreme TurboBoost; 0|X1|X2|X3|X4|X5|X6" },
+            "Xtreme TurboBoost; 0|X1|X2|X3|X4|X5|X6|EX0|EX1|EX2|EX3|EX4|EX5|EX6" },
         { "LudicrousN64-CountPerOp",
             "Xtreme OverClock; 0|X1|X2|X3|X4|X5|X6|X7|X8|X9|XX" },
         { "LudicrousN64-GLideN64IniBehaviour",
@@ -393,7 +435,14 @@ const char* retro_get_system_directory(void)
 
 void retro_set_video_refresh(retro_video_refresh_t cb) { video_cb = cb; }
 void retro_set_audio_sample(retro_audio_sample_t cb)   { }
-void retro_set_audio_sample_batch(retro_audio_sample_batch_t cb) { audio_batch_cb = cb; }
+static retro_audio_sample_batch_t audio_batch_cb_real = NULL;
+static size_t audio_batch_wrapper(const int16_t *data, size_t frames)
+{
+    if (TurboBoost_NoSync)
+        return frames; /* drop audio in EX (including EX0) to avoid audio sync pacing */
+    return audio_batch_cb_real ? audio_batch_cb_real(data, frames) : frames;
+}
+void retro_set_audio_sample_batch(retro_audio_sample_batch_t cb) { audio_batch_cb_real = cb; audio_batch_cb = audio_batch_wrapper; }
 void retro_set_input_poll(retro_input_poll_t cb) { poll_cb = cb; }
 void retro_set_input_state(retro_input_state_t cb) { input_cb = cb; }
 
@@ -887,20 +936,7 @@ void update_variables()
     var.value = NULL;
     if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
     {
-    if (!strcmp(var.value, "X6"))
-       TurboBoost = 6;
-    else if (!strcmp(var.value, "X5"))
-       TurboBoost = 5;
-    else if (!strcmp(var.value, "X4"))
-       TurboBoost = 4;
-    else if (!strcmp(var.value, "X3"))
-       TurboBoost = 3;
-    else if (!strcmp(var.value, "X2"))
-       TurboBoost = 2;         
-    else if (!strcmp(var.value, "X1"))
-       TurboBoost = 1;
-    else
-       TurboBoost = 0;
+        parse_turboboost_value(var.value);
     }
 
     var.key = "LudicrousN64-CountPerOp";

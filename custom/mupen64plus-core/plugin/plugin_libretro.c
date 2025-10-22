@@ -20,8 +20,6 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-/* custom/mupen64plus-core/plugin/plugin_libretro.c */
-
 #include <stdio.h>
 #include <stdlib.h>
 
