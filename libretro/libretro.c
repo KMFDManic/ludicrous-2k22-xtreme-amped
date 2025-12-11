@@ -216,6 +216,9 @@ static void parse_turboboost_value(const char *val)
     else if (!strcmp(val, "X3")) TurboBoost = 3;
     else if (!strcmp(val, "X2")) TurboBoost = 2;
     else if (!strcmp(val, "X1")) TurboBoost = 1;
+    else if (!strcmp(val, "EX9")) { TurboBoost = 9; TurboBoost_NoSync = true; }
+    else if (!strcmp(val, "EX8")) { TurboBoost = 8; TurboBoost_NoSync = true; }
+    else if (!strcmp(val, "EX7")) { TurboBoost = 7; TurboBoost_NoSync = true; }
     else if (!strcmp(val, "EX6")) { TurboBoost = 6; TurboBoost_NoSync = true; }
     else if (!strcmp(val, "EX5")) { TurboBoost = 5; TurboBoost_NoSync = true; }
     else if (!strcmp(val, "EX4")) { TurboBoost = 4; TurboBoost_NoSync = true; }
@@ -258,7 +261,7 @@ static void setup_variables(void)
         { "LudicrousN64-virefresh",
             "Xtreme Langoliers TimeSlip VIRefresh (discharge time-eaters to make stale FPS...vanish); 2400|2500|2600|2700|2800|2900|3000|3100|3200|3300|3400|3500|3600|3700|3800|3900|4000|4100|4200|4300|4400|4500|50|100|150|200|250|300|350|400|450|500|550|600|650|700|750|800|850|900|950|1000|1050|1100|1150|1200|1250|1300|1350|1400|1450|1500|1600|1700|1800|1900|2000|2100|2200|2300" },
         { "LudicrousN64-TurboBoost",
-            "Xtreme TurboBoost; 0|X1|X2|X3|X4|X5|X6|EX0|EX1|EX2|EX3|EX4|EX5|EX6" },
+            "Xtreme TurboBoost; 0|X1|X2|X3|X4|X5|X6|EX0|EX1|EX2|EX3|EX4|EX5|EX6|EX7|EX8|EX9" },
         { "LudicrousN64-CountPerOp",
             "Xtreme OverClock; 0|X1|X2|X3|X4|X5|X6|X7|X8|X9|XX" },
         { "LudicrousN64-GLideN64IniBehaviour",
