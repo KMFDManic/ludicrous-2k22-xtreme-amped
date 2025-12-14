@@ -110,6 +110,7 @@ int r_cbutton;
 int l_cbutton;
 int d_cbutton;
 int u_cbutton;
+int dpad_as_analog_p1 = 0;
 
 static uint8_t* game_data = NULL;
 static uint32_t game_size = 0;
@@ -256,6 +257,8 @@ static void setup_variables(void)
             "16:9 Resolution; 512×288|640x360|854×480|960x540|1280x720|1920x1080|2560x1440|3840x2160|4096x2160|7680x4320|256×144|426×240" },
         { "LudicrousN64-aspect",
             "Aspect Ratio; 4:3|16:9|16:9 adjusted" },
+        {"LudicrousN64-DPadMode",
+           "Ludicrous Xtreme D-Pad Mode; Off|P1 D-Pad as Analog"},			
         { "LudicrousN64-LangoliersPurge",
             "Xtreme Langoliers Purge (periodically unleash time-eaters to devour stale VRAM); Off|1 sec (Voracious – The Langoliers)|2 sec (Telekinetic – Carrie)|3 sec (Rabid – Cujo)|5 sec (Ravenous – It)|7 sec (Sinister – The Dark Half)|10 sec (Creeping – The Mist)|15 sec (Relentless – Christine)|20 sec (Restless – Pet Sematary)|30 sec (Obsessive – Misery)|45 sec (Prophetic – The Dead Zone)|60 sec (Watchful – The Shining)|90 sec (Nocturnal – ’Salem’s Lot)|120 sec (Ominous – Needful Things)|180 sec (Haunting – 1408)|240 sec (Pursuit – The Running Man)|300 sec (Searing – Firestarter)|600 sec (Drowsy – Doctor Sleep)|900 sec (Nostalgic – Stand by Me)|1200 sec (Hopeful – The Shawshank Redemption)|1500 sec (Enduring – The Long Walk)|1800 sec (Expansive – The Stand)|2400 sec (Epic – The Dark Tower)" },
         { "LudicrousN64-virefresh",
@@ -1040,6 +1043,16 @@ void update_variables()
             u_cbutton = RETRO_DEVICE_ID_JOYPAD_B;
         else if (!strcmp(var.value, "C4"))
             u_cbutton = RETRO_DEVICE_ID_JOYPAD_X;
+    }
+
+    var.key = "LudicrousN64-DPadMode";
+    var.value = NULL;
+    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+    {
+        if (!strcmp(var.value, "P1 D-Pad as Analog"))
+            dpad_as_analog_p1 = 1;
+        else
+            dpad_as_analog_p1 = 0;
     }
 
     var.key = "LudicrousN64-ForceDisableExtraMem";

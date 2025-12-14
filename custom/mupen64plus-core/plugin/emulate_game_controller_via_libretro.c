@@ -42,6 +42,7 @@ extern int pad_pak_types[4];
 extern int pad_present[4];
 extern int astick_deadzone;
 extern int astick_sensitivity;
+extern int dpad_as_analog_p1;
 extern int r_cbutton;
 extern int l_cbutton;
 extern int d_cbutton;
@@ -304,8 +305,37 @@ static void inputGetKeys_reuse(int16_t analogX, int16_t analogY, int Control, BU
    //  Keys->Value |= input_cb(Control, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_XX)    ? 0x4000 : 0; // Mempak switch
    //  Keys->Value |= input_cb(Control, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_XX)    ? 0x8000 : 0; // Rumblepak switch
 
-   analogX = input_cb(Control, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X);
-   analogY = input_cb(Control, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_Y);
+if (Control == 0 && dpad_as_analog_p1)
+{
+    int left  = input_cb(Control, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_LEFT);
+    int right = input_cb(Control, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_RIGHT);
+    int up    = input_cb(Control, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_UP);
+    int down  = input_cb(Control, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_DOWN);
+
+    int hor  = 0;
+    int vert = 0;
+
+    if (right) hor++;
+    if (left)  hor--;
+    if (down)  vert++;
+    if (up)    vert--;
+
+    const int16_t dpad_max = 0x7fff;  /* use a value that fits in int16_t */
+    analogX = hor  * dpad_max;
+    analogY = vert * dpad_max;
+
+    /* Optional: soften diagonals a bit */
+    if (analogX && analogY)
+    {
+        analogX = analogX * 3 / 4;
+        analogY = analogY * 3 / 4;
+    }
+}
+else
+{
+    analogX = input_cb(Control, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X);
+    analogY = input_cb(Control, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_Y);
+}
 
    // Convert cartesian coordinate analog stick to polar coordinates
    radius = sqrt(analogX * analogX + analogY * analogY);
