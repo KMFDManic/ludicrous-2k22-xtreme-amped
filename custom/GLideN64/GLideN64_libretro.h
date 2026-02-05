@@ -78,11 +78,15 @@ extern "C" {
 #endif
 /* 0 = One piece, 1 = Stripped (default) */
 extern uint32_t BGMode;
+/* 0.0 = fog disabled, 1.0 = normal, other values scale fog intensity */
+extern float xt_fog_scale;
 #ifdef __cplusplus
 }
 #endif
 #endif
 
 extern uint32_t BGMode;
+/* 0.0 = fog disabled, 1.0 = normal, other values scale fog intensity */
+extern float xt_fog_scale;
 
 #endif

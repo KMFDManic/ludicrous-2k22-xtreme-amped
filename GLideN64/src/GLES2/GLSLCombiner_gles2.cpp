@@ -16,6 +16,7 @@
 #include <FBOTextureFormats.h>
 
 #include "Shaders_gles2.h"
+#include "../../../custom/GLideN64/GLideN64_libretro.h"
 
 #define NOISE_TEX_NUM 30
 
@@ -341,8 +342,15 @@ void ShaderCombiner::updateFogMode(bool _bForce)
 	if (!GBI.isTextureGen())
 		// F-Zero ucode seems to always use fog mode when fog is used in blender.
 		nFogUsage |= (gDP.otherMode.c1_m1a == 3 || gDP.otherMode.c1_m2a == 3) ? 1 : 0;
+	/* Xtreme Fog/Draw Distance */
+	if (xt_fog_scale <= 0.0f) {
+		m_uniforms.uFogUsage.set(0, _bForce);
+		return;
+	}
 	m_uniforms.uFogUsage.set(nFogUsage, _bForce);
-	m_uniforms.uFogScale.set((float)gSP.fog.multiplier / 256.0f, (float)gSP.fog.offset / 256.0f, _bForce);
+	m_uniforms.uFogScale.set(((float)gSP.fog.multiplier / 256.0f) * xt_fog_scale,
+					 ((float)gSP.fog.offset / 256.0f) * xt_fog_scale,
+					 _bForce);
 }
 
 void ShaderCombiner::updateBlendMode(bool _bForce)
