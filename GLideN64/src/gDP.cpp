@@ -22,6 +22,10 @@
 #include "Combiner.h"
 #include "Performance.h"
 
+#ifdef __LIBRETRO__
+#include "GLideN64_libretro.h"
+#endif
+
 using namespace std;
 
 gDPInfo gDP;
@@ -237,6 +241,25 @@ void gDPSetBlendColor( u32 r, u32 g, u32 b, u32 a )
 
 void gDPSetFogColor( u32 r, u32 g, u32 b, u32 a )
 {
+#ifdef __LIBRETRO__
+	/* Xtreme Fog Color override (does not change alpha) */
+	switch (xt_fog_color_mode)
+	{
+		default:
+		case 0: break; /* Default */
+		case 1: r = 128; g = 0;   b = 128; break; /* Purple */
+		case 2: r = 255; g = 0;   b = 0;   break; /* Red */
+		case 3: r = 0;   g = 255; b = 0;   break; /* Green */
+		case 4: r = 0;   g = 0;   b = 255; break; /* Blue */
+		case 5: r = 255; g = 255; b = 0;   break; /* Yellow */
+		case 6: r = 0;   g = 255; b = 255; break; /* Cyan */
+		case 7: r = 255; g = 0;   b = 255; break; /* Magenta */
+		case 8: r = 255; g = 128; b = 0;   break; /* Orange */
+		case 9: r = 255; g = 105; b = 180; break; /* Pink */
+		case 10: r = 0;  g = 0;   b = 0;   break; /* Black */
+		case 11: r = 255; g = 255; b = 255; break; /* White */
+	}
+#endif
 	gDP.fogColor.r = r * 0.0039215689f;
 	gDP.fogColor.g = g * 0.0039215689f;
 	gDP.fogColor.b = b * 0.0039215689f;

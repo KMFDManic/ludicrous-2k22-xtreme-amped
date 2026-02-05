@@ -157,6 +157,9 @@ uint32_t BGMode = 1;
 /* Xtreme Fog/Draw Distance: 0.0 = disabled, 1.0 = normal */
 float xt_fog_scale = 1.0f;
 
+
+/* Xtreme Fog Color override: 0=Default, 1=Purple, 2=Red, 3=Green, 4=Blue, 5=Yellow, 6=Cyan, 7=Magenta, 8=Orange, 9=Pink, 10=Black, 11=White */
+uint32_t xt_fog_color_mode = 0;
 unsigned xt_purge_interval_vi = 600;
 
 
@@ -286,6 +289,7 @@ static void setup_variables(void)
         { "LudicrousN64-GLideN64IniBehaviour",
             "Xtreme Ini Control; ini_config_priority|core_options_priority|disabled"},
         { "LudicrousN64-xtreme_fog", "Xtreme Fog/Draw Distance; 1.00x (Default)|0.75x (Farther)|0.50x (Farthest)|1.25x (Nearer)|1.50x (Near)|2.00x (Spooky)|3.00x (Thick)|4.00x (In-Your-Face)|6.00x (Wall)|8.00x (Whiteout)|12.00x (Near Wall)|16.00x (Face Fog)|24.00x (Blind)|32.00x (Total Whiteout)|Off (Disabled)" },
+        { "LudicrousN64-xtreme_fog_color", "Xtreme Fog Color; Default|Purple|Red|Green|Blue|Yellow|Cyan|Magenta|Orange|Pink|Black|White" },
         { "LudicrousN64-BilinearMode",
             "Bilinear filtering mode; standard|3point" },
 #ifndef HAVE_OPENGLES2
@@ -1078,7 +1082,27 @@ if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
 	    }
 }
 
-    var.key = "LudicrousN64-r-cbutton";
+    
+var.key = "LudicrousN64-xtreme_fog_color";
+var.value = NULL;
+if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+{
+    if (!strcmp(var.value, "Default"))       xt_fog_color_mode = 0;
+    else if (!strcmp(var.value, "Purple"))  xt_fog_color_mode = 1;
+    else if (!strcmp(var.value, "Red"))     xt_fog_color_mode = 2;
+    else if (!strcmp(var.value, "Green"))   xt_fog_color_mode = 3;
+    else if (!strcmp(var.value, "Blue"))    xt_fog_color_mode = 4;
+    else if (!strcmp(var.value, "Yellow"))  xt_fog_color_mode = 5;
+    else if (!strcmp(var.value, "Cyan"))    xt_fog_color_mode = 6;
+    else if (!strcmp(var.value, "Magenta")) xt_fog_color_mode = 7;
+    else if (!strcmp(var.value, "Orange"))  xt_fog_color_mode = 8;
+    else if (!strcmp(var.value, "Pink"))    xt_fog_color_mode = 9;
+    else if (!strcmp(var.value, "Black"))   xt_fog_color_mode = 10;
+    else if (!strcmp(var.value, "White"))   xt_fog_color_mode = 11;
+    else xt_fog_color_mode = 0;
+}
+
+var.key = "LudicrousN64-r-cbutton";
     var.value = NULL;
 
     if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
