@@ -285,7 +285,7 @@ static void setup_variables(void)
             "Xtreme OverClock; 0|X1|X2|X3|X4|X5|X6|X7|X8|X9|XX" },
         { "LudicrousN64-GLideN64IniBehaviour",
             "Xtreme Ini Control; ini_config_priority|core_options_priority|disabled"},
-        { "LudicrousN64-xtreme_fog", "Xtreme Fog/Draw Distance; 1.00x (Default)|0.75x (Farther)|0.50x (Farthest)|1.25x (Nearer)|1.50x (Near)|2.00x (Spooky)|Off (Disabled)" },
+        { "LudicrousN64-xtreme_fog", "Xtreme Fog/Draw Distance; 1.00x (Default)|0.75x (Farther)|0.50x (Farthest)|1.25x (Nearer)|1.50x (Near)|2.00x (Spooky)|3.00x (Thick)|4.00x (In-Your-Face)|6.00x (Wall)|8.00x (Whiteout)|12.00x (Near Wall)|16.00x (Face Fog)|24.00x (Blind)|32.00x (Total Whiteout)|Off (Disabled)" },
         { "LudicrousN64-BilinearMode",
             "Bilinear filtering mode; standard|3point" },
 #ifndef HAVE_OPENGLES2
@@ -1060,15 +1060,22 @@ var.key = "LudicrousN64-xtreme_fog";
 var.value = NULL;
 if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
 {
-    /* The label includes hints; we only care about the numeric scale or Off */
-    if      (!strcmp(var.value, "Off (Disabled)"))           xt_fog_scale = 0.0f;
-    else if (!strncmp(var.value, "0.50x", 4))                xt_fog_scale = 0.50f;
-    else if (!strncmp(var.value, "0.75x", 4))                xt_fog_scale = 0.75f;
-    else if (!strncmp(var.value, "1.00x", 4))                xt_fog_scale = 1.00f;
-    else if (!strncmp(var.value, "1.25x", 4))                xt_fog_scale = 1.25f;
-    else if (!strncmp(var.value, "1.50x", 4))                xt_fog_scale = 1.50f;
-    else if (!strncmp(var.value, "2.00x", 4))                xt_fog_scale = 2.00f;
-    else                                                    xt_fog_scale = 1.00f;
+	    /* The label includes hints; we only care about the numeric scale or Off.
+	     * Parse the numeric prefix so extending the option list doesn't require
+	     * hard-coding every value.
+	     */
+	    if (!strcmp(var.value, "Off (Disabled)"))
+	    {
+	       xt_fog_scale = 0.0f;
+	    }
+	    else
+	    {
+	       float scale = 1.0f;
+	       if (sscanf(var.value, "%fx", &scale) == 1 && scale > 0.0f)
+	          xt_fog_scale = scale;
+	       else
+	          xt_fog_scale = 1.00f;
+	    }
 }
 
     var.key = "LudicrousN64-r-cbutton";
