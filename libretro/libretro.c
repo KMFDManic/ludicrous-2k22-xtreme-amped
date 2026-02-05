@@ -156,13 +156,22 @@ uint32_t BGMode = 1;
 
 unsigned xt_purge_interval_vi = 600;
 
-static unsigned xt_secs_to_vi(unsigned secs)
+
+/* Xtreme Langoliers helpers */
+void xt_vram_purge_soft(void);
+int xt_purge_button_id = -1; /* RETRO_DEVICE_ID_JOYPAD_* or -1 disabled */
+static int16_t xt_purge_button_last = 0;
+static unsigned xt_seconds_to_vi(double seconds)
 {
     /* Use the core’s reported VI refresh as FPS-ish; fall back to 60 if weird */
     double fps = vi_expected_refresh_rate_from_tv_standard(ROM_PARAMS.systemtype);
     if (fps < 1.0 || fps > 1000.0) fps = 60.0;
-    unsigned vi = (unsigned)(secs * fps + 0.5);
-    return vi ? vi : 1;
+
+    if (seconds <= 0.0)
+        return 0;
+
+    unsigned vi = (unsigned)(seconds * fps + 0.5);
+    return vi ? vi : 1; /* minimum 1 tick */
 }
 
 int rspMode = 0;
@@ -258,9 +267,13 @@ static void setup_variables(void)
         { "LudicrousN64-aspect",
             "Aspect Ratio; 4:3|16:9|16:9 adjusted" },
         {"LudicrousN64-DPadMode",
-           "Ludicrous Xtreme D-Pad Mode; Off|P1 D-Pad as Analog"},			
+           "Xtreme D-Pad Mode; Off|P1 D-Pad as Analog"},
+        {"LudicrousN64-astick-sensitivity",
+           "Xtreme Analog/D-Pad Mode Sensitivity (percent); 100|105|110|115|120|125|130|135|140|145|150|200|50|55|60|65|70|75|80|85|90|95"},           
         { "LudicrousN64-LangoliersPurge",
-            "Xtreme Langoliers Purge (periodically unleash time-eaters to devour stale VRAM); Off|1 sec (Voracious – The Langoliers)|2 sec (Telekinetic – Carrie)|3 sec (Rabid – Cujo)|5 sec (Ravenous – It)|7 sec (Sinister – The Dark Half)|10 sec (Creeping – The Mist)|15 sec (Relentless – Christine)|20 sec (Restless – Pet Sematary)|30 sec (Obsessive – Misery)|45 sec (Prophetic – The Dead Zone)|60 sec (Watchful – The Shining)|90 sec (Nocturnal – ’Salem’s Lot)|120 sec (Ominous – Needful Things)|180 sec (Haunting – 1408)|240 sec (Pursuit – The Running Man)|300 sec (Searing – Firestarter)|600 sec (Drowsy – Doctor Sleep)|900 sec (Nostalgic – Stand by Me)|1200 sec (Hopeful – The Shawshank Redemption)|1500 sec (Enduring – The Long Walk)|1800 sec (Expansive – The Stand)|2400 sec (Epic – The Dark Tower)" },
+            "Xtreme Langoliers Purge (periodically unleash time-eaters to devour stale VRAM); Off|Always (Constant – The Ledge)|50 ms (Flash Fiction – The Jaunt)|100 ms (Short Story – Survivor Type)|250 ms (Short Story – The Raft)|500 ms (Short Story – The Boogeyman)|750 ms (Short Story – Children of the Corn)|900 ms (Short Story – The Monkey)|1 sec (Voracious – The Langoliers)|2 sec (Telekinetic – Carrie)|3 sec (Rabid – Cujo)|5 sec (Ravenous – It)|7 sec (Sinister – The Dark Half)|10 sec (Creeping – The Mist)|15 sec (Relentless – Christine)|20 sec (Restless – Pet Sematary)|30 sec (Obsessive – Misery)|45 sec (Prophetic – The Dead Zone)|60 sec (Watchful – The Shining)|90 sec (Nocturnal – ’Salem’s Lot)|120 sec (Ominous – Needful Things)|180 sec (Haunting – 1408)|240 sec (Pursuit – The Running Man)|300 sec (Searing – Firestarter)|600 sec (Drowsy – Doctor Sleep)|900 sec (Nostalgic – Stand by Me)|1200 sec (Hopeful – The Shawshank Redemption)|1500 sec (Enduring – The Long Walk)|1800 sec (Expansive – The Stand)|2400 sec (Epic – The Dark Tower)" },
+        { "LudicrousN64-LangoliersPress",
+            "Xtreme MF Langoliers Press (tap a button to instantly unleash a one-shot VRAM purge); Disabled|A|B|X|Y|L|R|Select|Start|L2|R2|L3|R3" },
         { "LudicrousN64-virefresh",
             "Xtreme Langoliers TimeSlip VIRefresh (discharge time-eaters to make stale FPS...vanish); 2400|2500|2600|2700|2800|2900|3000|3100|3200|3300|3400|3500|3600|3700|3800|3900|4000|4100|4200|4300|4400|4500|50|100|150|200|250|300|350|400|450|500|550|600|650|700|750|800|850|900|950|1000|1050|1100|1150|1200|1250|1300|1350|1400|1450|1500|1600|1700|1800|1900|2000|2100|2200|2300" },
         { "LudicrousN64-TurboBoost",
@@ -326,8 +339,6 @@ static void setup_variables(void)
             "Use High-Res Full Alpha Channel; False|True" },
         {"LudicrousN64-astick-deadzone",
            "Analog Deadzone (percent); 15|20|25|30|0|5|10"},
-        {"LudicrousN64-astick-sensitivity",
-           "Analog Sensitivity (percent); 100|105|110|115|120|125|130|135|140|145|150|200|50|55|60|65|70|75|80|85|90|95"},
         {"LudicrousN64-r-cbutton",
            "Right C Button; C1|C2|C3|C4"},
         {"LudicrousN64-l-cbutton",
@@ -364,6 +375,88 @@ static void setup_variables(void)
 
     environ_cb(RETRO_ENVIRONMENT_SET_VARIABLES, variables);
     environ_cb(RETRO_ENVIRONMENT_SET_CONTROLLER_INFO, (void*)ports);
+
+    /* Ensure RetroArch exposes standard RetroPad inputs (incl. Select) for remapping.
+     * Some frontends will gray-out missing inputs in the Controls menu if no descriptors are provided.
+     */
+    static const struct retro_input_descriptor input_desc[] = {
+        /* Port 1 */
+        { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_B,      "B"      },
+        { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_Y,      "Y"      },
+        { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_SELECT, "Select" },
+        { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_START,  "Start"  },
+        { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_UP,     "Up"     },
+        { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_DOWN,   "Down"   },
+        { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_LEFT,   "Left"   },
+        { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_RIGHT,  "Right"  },
+        { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_A,      "A"      },
+        { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_X,      "X"      },
+        { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L,      "L"      },
+        { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R,      "R"      },
+        { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L2,     "L2"     },
+        { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R2,     "R2"     },
+        { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L3,     "L3"     },
+        { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R3,     "R3"     },
+
+        /* Port 2 */
+        { 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_B,      "B"      },
+        { 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_Y,      "Y"      },
+        { 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_SELECT, "Select" },
+        { 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_START,  "Start"  },
+        { 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_UP,     "Up"     },
+        { 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_DOWN,   "Down"   },
+        { 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_LEFT,   "Left"   },
+        { 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_RIGHT,  "Right"  },
+        { 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_A,      "A"      },
+        { 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_X,      "X"      },
+        { 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L,      "L"      },
+        { 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R,      "R"      },
+        { 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L2,     "L2"     },
+        { 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R2,     "R2"     },
+        { 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L3,     "L3"     },
+        { 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R3,     "R3"     },
+
+        /* Port 3 */
+        { 2, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_B,      "B"      },
+        { 2, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_Y,      "Y"      },
+        { 2, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_SELECT, "Select" },
+        { 2, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_START,  "Start"  },
+        { 2, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_UP,     "Up"     },
+        { 2, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_DOWN,   "Down"   },
+        { 2, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_LEFT,   "Left"   },
+        { 2, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_RIGHT,  "Right"  },
+        { 2, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_A,      "A"      },
+        { 2, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_X,      "X"      },
+        { 2, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L,      "L"      },
+        { 2, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R,      "R"      },
+        { 2, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L2,     "L2"     },
+        { 2, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R2,     "R2"     },
+        { 2, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L3,     "L3"     },
+        { 2, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R3,     "R3"     },
+
+        /* Port 4 */
+        { 3, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_B,      "B"      },
+        { 3, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_Y,      "Y"      },
+        { 3, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_SELECT, "Select" },
+        { 3, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_START,  "Start"  },
+        { 3, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_UP,     "Up"     },
+        { 3, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_DOWN,   "Down"   },
+        { 3, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_LEFT,   "Left"   },
+        { 3, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_RIGHT,  "Right"  },
+        { 3, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_A,      "A"      },
+        { 3, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_X,      "X"      },
+        { 3, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L,      "L"      },
+        { 3, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R,      "R"      },
+        { 3, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L2,     "L2"     },
+        { 3, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R2,     "R2"     },
+        { 3, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L3,     "L3"     },
+        { 3, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R3,     "R3"     },
+
+        { 0 }
+    };
+
+    environ_cb(RETRO_ENVIRONMENT_SET_INPUT_DESCRIPTORS, (void*)input_desc);
+
 }
 
 
@@ -913,21 +1006,77 @@ void update_variables()
     {
         if (!strcmp(var.value, "Off")) {
             xt_purge_interval_vi = 0;
+        } else if (!strncmp(var.value, "Always", 6)) {
+            /* Aggressive: purge every VI tick (≈ every frame at 60 Hz). */
+            xt_purge_interval_vi = 1;
         } else {
-            /* Expect "<number> sec" -> parse the number robustly */
+            /* Expect:
+             *   "<number> ms ..."
+             *   "<number> sec ..."
+             *   "<number>.<number> sec ..."
+             * Default unit is seconds when not specified.
+             */
             const char *s = var.value;
             char *end = NULL;
-            long secs = strtol(s, &end, 10);
-            if (secs > 0) {
-                xt_purge_interval_vi = xt_secs_to_vi((unsigned)secs);
+            double v = strtod(s, &end);
+
+            if (v > 0.0) {
+                while (end && (*end == ' ' || *end == '	'))
+                    end++;
+
+                if (end && ((end[0] == 'm' || end[0] == 'M') && (end[1] == 's' || end[1] == 'S'))) {
+                    xt_purge_interval_vi = xt_seconds_to_vi(v / 1000.0);
+                } else {
+                    xt_purge_interval_vi = xt_seconds_to_vi(v);
+                }
+
+                /* If the computed interval is non-zero but somehow rounds to 0, clamp to 1 tick. */
+                if (!xt_purge_interval_vi)
+                    xt_purge_interval_vi = 1;
             } else {
                 /* Fallback default if parsing fails */
-                xt_purge_interval_vi = xt_secs_to_vi(60);
+                xt_purge_interval_vi = xt_seconds_to_vi(60.0);
             }
         }
     }
 
-    var.key = "LudicrousN64-virefresh";
+    
+    var.key = "LudicrousN64-LangoliersPress";
+    var.value = NULL;
+    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+    {
+        xt_purge_button_id = -1;
+
+        if (!strcmp(var.value, "A"))
+            xt_purge_button_id = RETRO_DEVICE_ID_JOYPAD_A;
+        else if (!strcmp(var.value, "B"))
+            xt_purge_button_id = RETRO_DEVICE_ID_JOYPAD_B;
+        else if (!strcmp(var.value, "X"))
+            xt_purge_button_id = RETRO_DEVICE_ID_JOYPAD_X;
+        else if (!strcmp(var.value, "Y"))
+            xt_purge_button_id = RETRO_DEVICE_ID_JOYPAD_Y;
+        else if (!strcmp(var.value, "L"))
+            xt_purge_button_id = RETRO_DEVICE_ID_JOYPAD_L;
+        else if (!strcmp(var.value, "R"))
+            xt_purge_button_id = RETRO_DEVICE_ID_JOYPAD_R;
+        else if (!strcmp(var.value, "L2"))
+            xt_purge_button_id = RETRO_DEVICE_ID_JOYPAD_L2;
+        else if (!strcmp(var.value, "R2"))
+            xt_purge_button_id = RETRO_DEVICE_ID_JOYPAD_R2;
+        else if (!strcmp(var.value, "L3"))
+            xt_purge_button_id = RETRO_DEVICE_ID_JOYPAD_L3;
+        else if (!strcmp(var.value, "R3"))
+            xt_purge_button_id = RETRO_DEVICE_ID_JOYPAD_R3;
+        else if (!strcmp(var.value, "Select"))
+            xt_purge_button_id = RETRO_DEVICE_ID_JOYPAD_SELECT;
+        else if (!strcmp(var.value, "Start"))
+            xt_purge_button_id = RETRO_DEVICE_ID_JOYPAD_START;
+
+        /* Reset edge detector when option changes */
+        xt_purge_button_last = 0;
+    }
+
+var.key = "LudicrousN64-virefresh";
     av_info_dirty = true;
     var.value = NULL;
     if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
@@ -1171,6 +1320,22 @@ void retro_run (void)
         update_variables();
     xt_push_av_info_if_needed();
     glsm_ctl(GLSM_CTL_STATE_BIND, NULL);
+    /* Xtreme MF Langoliers Press: one-shot VRAM purge on button edge (P1). */
+    if (xt_purge_button_id >= 0 && poll_cb && input_cb)
+    {
+        poll_cb();
+        int16_t pressed = input_cb(0, RETRO_DEVICE_JOYPAD, 0, xt_purge_button_id);
+
+        if (pressed && !xt_purge_button_last)
+        {
+            xt_vram_purge_soft();
+            if (log_cb)
+                log_cb(RETRO_LOG_INFO, "[xtreme] Langoliers Press: one-shot purge fired.\n");
+        }
+
+        xt_purge_button_last = pressed ? 1 : 0;
+    }
+
     co_switch(game_thread);
     glsm_ctl(GLSM_CTL_STATE_UNBIND, NULL);
     if (libretro_swap_buffer)
