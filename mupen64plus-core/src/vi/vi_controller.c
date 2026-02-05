@@ -28,6 +28,7 @@
 #include "memory/memory.h"
 #include "plugin/plugin.h"
 #include "r4300/r4300_core.h"
+#include "r4300/interupt.h"
 #include "../../../custom/GLideN64/GLideN64_libretro.h"
 
 /* XXX: timing hacks */
@@ -95,10 +96,27 @@ int read_vi_regs(void* opaque, uint32_t address, uint32_t* value)
     {
         /* XXX: update current line number */
         cp0_update_count();
+
+        /* Guard against Auto (override=0) before VI is fully initialized.
+         * Some titles will read VI_CURRENT early, before VI_V_SYNC is programmed. */
         if (vi->alternate_timing)
-            vi->regs[VI_CURRENT_REG] = (vi->delay - (vi->next_vi - cp0_regs[CP0_COUNT_REG])) % (NTSC_VERTICAL_RESOLUTION + 1);
+        {
+            if (vi->count_per_scanline != 0)
+                vi->regs[VI_CURRENT_REG] = (vi->delay - (vi->next_vi - cp0_regs[CP0_COUNT_REG])) % (NTSC_VERTICAL_RESOLUTION + 1);
+            else
+                vi->regs[VI_CURRENT_REG] = 0;
+        }
         else
-            vi->regs[VI_CURRENT_REG] = (vi->delay - (vi->next_vi - cp0_regs[CP0_COUNT_REG])) / vi->count_per_scanline;
+        {
+            if (vi->regs[VI_V_SYNC_REG] != 0 && vi->count_per_scanline != 0)
+                vi->regs[VI_CURRENT_REG] = (vi->delay - (vi->next_vi - cp0_regs[CP0_COUNT_REG])) / vi->count_per_scanline;
+            else
+                vi->regs[VI_CURRENT_REG] = 0;
+
+            /* wrap around VI_CURRENT_REG if needed */
+            if (vi->regs[VI_V_SYNC_REG] != 0 && vi->regs[VI_CURRENT_REG] >= vi->regs[VI_V_SYNC_REG])
+                vi->regs[VI_CURRENT_REG] -= vi->regs[VI_V_SYNC_REG];
+        }
 
         /* update current field */
         vi->regs[VI_CURRENT_REG] = (vi->regs[VI_CURRENT_REG] & (~1)) | vi->field;
@@ -135,6 +153,31 @@ int write_vi_regs(void* opaque, uint32_t address, uint32_t value, uint32_t mask)
     case VI_CURRENT_REG:
         clear_rcp_interrupt(vi->r4300, MI_INTR_VI);
         return 0;
+
+    case VI_V_SYNC_REG:
+        if ((vi->regs[VI_V_SYNC_REG] & mask) != (value & mask))
+        {
+            masked_write(&vi->regs[VI_V_SYNC_REG], value, mask);
+
+            if(!CountPerScanlineOverride)
+                vi->count_per_scanline = (vi->clock / vi->expected_refresh_rate) / (vi->regs[VI_V_SYNC_REG] + 1);
+            else
+                vi->count_per_scanline = CountPerScanlineOverride;
+
+            vi->delay = (vi->regs[VI_V_SYNC_REG] + 1) * vi->count_per_scanline;
+        }
+        return 0;
+
+    case VI_V_INTR_REG:
+        masked_write(&vi->regs[VI_V_INTR_REG], value, mask);
+        if (!get_event(VI_INT) && (vi->regs[VI_V_INTR_REG] < vi->regs[VI_V_SYNC_REG]))
+        {
+            const uint32_t* cp0_regs = r4300_cp0_regs();
+            cp0_update_count();
+            vi->next_vi = cp0_regs[CP0_COUNT_REG] + vi->delay;
+            add_interupt_event_count(VI_INT, vi->next_vi);
+        }
+        return 0;
     }
 
     masked_write(&vi->regs[reg], value, mask);
@@ -153,11 +196,13 @@ void vi_vertical_interrupt_event(struct vi_controller* vi)
     vi->field ^= (vi->regs[VI_STATUS_REG] >> 6) & 0x1;
 
     /* schedule next vertical interrupt */
-    if(CountPerScanlineOverride) {
-        if (vi->regs[VI_V_SYNC_REG] == 0)
-            vi->delay = 500000;
-        else
-            vi->delay = (vi->regs[VI_V_SYNC_REG] + 1) * vi->count_per_scanline;
+    if (vi->regs[VI_V_SYNC_REG] == 0)
+        vi->delay = 500000;
+    else
+    {
+        if (!CountPerScanlineOverride && vi->count_per_scanline == 0)
+            vi->count_per_scanline = (vi->clock / vi->expected_refresh_rate) / (vi->regs[VI_V_SYNC_REG] + 1);
+        vi->delay = (vi->regs[VI_V_SYNC_REG] + 1) * vi->count_per_scanline;
     }
 
     vi->next_vi += vi->delay;
@@ -167,4 +212,3 @@ void vi_vertical_interrupt_event(struct vi_controller* vi)
     /* trigger interrupt */
     raise_rcp_interrupt(vi->r4300, MI_INTR_VI);
 }
-
