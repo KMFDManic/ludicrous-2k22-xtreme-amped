@@ -1368,48 +1368,82 @@ bool retro_load_game_special(unsigned game_type, const struct retro_game_info *i
 
 void retro_cheat_reset(void)
 {
-    cheat_delete_all();
+    cheat_delete_all(&g_cheat_ctx);
 }
 
 void retro_cheat_set(unsigned index, bool enabled, const char* codeLine)
 {
     char name[256];
     m64p_cheat_code mupenCode[256];
-    int matchLength=0,partCount=0;
     uint32_t codeParts[256];
-    int cursor;
+    int partCount = 0;
+    int codeCount = 0;
 
-    //Generate a name
-    sprintf(name, "cheat_%u",index);
+    /* Generate a stable name per index (RetroArch may call retro_cheat_set() repeatedly). */
+    snprintf(name, sizeof(name), "cheat_%u", index);
 
-    //Break the code into Parts
-    for (cursor=0;;cursor++)
+    /* Parse any consecutive hex runs in the incoming cheat line.
+     *
+     * RetroArch cheat lines are typically formatted like:
+     *   AAAAAAAA BBBB
+     * but may include separators, prefixes, or multiple code pairs.
+     *
+     * NOTE: The previous implementation used a VLA sized to matchLength
+     * and then wrote the NUL terminator out-of-bounds (UB). This parser
+     * avoids that and is bounded.
+     */
     {
-        if (ISHEXDEC){
-            matchLength++;
-        } else {
-            if (matchLength){
-                char codePartS[matchLength];
-                strncpy(codePartS,codeLine+cursor-matchLength,matchLength);
-                codePartS[matchLength]=0;
-                codeParts[partCount++]=strtoul(codePartS,NULL,16);
-                matchLength=0;
+        char token[9]; /* up to 8 hex digits + NUL */
+        int token_len = 0;
+        int cursor;
+        for (cursor = 0; ; cursor++)
+        {
+            const char c = codeLine[cursor];
+            const int is_hex = ((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'));
+
+            if (is_hex)
+            {
+                /* If a run is longer than 8 hex chars, split into 8-char chunks. */
+                if (token_len == 8)
+                {
+                    token[token_len] = '\0';
+                    if (partCount < (int)(sizeof(codeParts) / sizeof(codeParts[0])))
+                        codeParts[partCount++] = (uint32_t) strtoul(token, NULL, 16);
+                    token_len = 0;
+                }
+                token[token_len++] = c;
+            }
+            else
+            {
+                if (token_len > 0)
+                {
+                    token[token_len] = '\0';
+                    if (partCount < (int)(sizeof(codeParts) / sizeof(codeParts[0])))
+                        codeParts[partCount++] = (uint32_t) strtoul(token, NULL, 16);
+                    token_len = 0;
+                }
+
+                if (c == '\0')
+                    break;
             }
         }
-        if (!codeLine[cursor]){
-            break;
-        }
     }
 
-    //Assign the parts to mupenCode
-    for (cursor=0;2*cursor+1<partCount;cursor++){
-        mupenCode[cursor].address=codeParts[2*cursor];
-        mupenCode[cursor].value=codeParts[2*cursor+1];
+    /* We need address/value pairs. Drop a dangling odd part if present. */
+    if (partCount < 2)
+        return;
+    if (partCount & 1)
+        partCount--;
+
+    /* Assign the parts to mupenCode */
+    for (codeCount = 0; (2 * codeCount + 1) < partCount && codeCount < (int)(sizeof(mupenCode) / sizeof(mupenCode[0])); codeCount++)
+    {
+        mupenCode[codeCount].address = codeParts[2 * codeCount];
+        mupenCode[codeCount].value   = codeParts[2 * codeCount + 1];
     }
 
-    //Assign to mupenCode
-    cheat_add_new(name,mupenCode,partCount/2);
-    cheat_set_enabled(name,enabled);
+    cheat_add_new(&g_cheat_ctx, name, mupenCode, codeCount);
+    cheat_set_enabled(&g_cheat_ctx, name, enabled);
 }
 
 void retro_return(void)
