@@ -278,7 +278,7 @@ static void setup_variables(void)
         { "LudicrousN64-LangoliersPress",
             "Xtreme MF Langoliers Press (tap a button to instantly unleash a one-shot VRAM purge); Disabled|A|B|X|Y|L|R|Select|Start|L2|R2|L3|R3" },
         { "LudicrousN64-virefresh",
-            "Xtreme Langoliers TimeSlip VIRefresh (discharge time-eaters to make stale FPS...vanish); 2400|2500|2600|2700|2800|2900|3000|3100|3200|3300|3400|3500|3600|3700|3800|3900|4000|4100|4200|4300|4400|4500|50|100|150|200|250|300|350|400|450|500|550|600|650|700|750|800|850|900|950|1000|1050|1100|1150|1200|1250|1300|1350|1400|1450|1500|1600|1700|1800|1900|2000|2100|2200|2300" },
+            "Xtreme Langoliers TimeSlip VIRefresh (discharge time-eaters to make stale FPS...vanish); Auto|2400|2500|2600|2700|2800|2900|3000|3100|3200|3300|3400|3500|3600|3700|3800|3900|4000|4100|4200|4300|4400|4500|50|100|150|200|250|300|350|400|450|500|550|600|650|700|750|800|850|900|950|1000|1050|1100|1150|1200|1250|1300|1350|1400|1450|1500|1600|1700|1800|1900|2000|2100|2200|2300" },
         { "LudicrousN64-TurboBoost",
             "Xtreme TurboBoost; 0|X1|X2|X3|X4|X5|X6|EX0|EX1|EX2|EX3|EX4|EX5|EX6|EX7|EX8|EX9" },
         { "LudicrousN64-CountPerOp",
